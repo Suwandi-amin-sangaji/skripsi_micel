@@ -1,54 +1,86 @@
-import streamlit as st
-import pandas as pd
-import os
 import string
-from textblob import TextBlob
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import confusion_matrix, accuracy_score, ConfusionMatrixDisplay
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.metrics import accuracy_score
-from wordcloud import WordCloud, STOPWORDS
-import matplotlib.pyplot as plt
-import seaborn as sns
-from PIL import Image
-import numpy as np
-from collections import Counter
-from io import BytesIO
+import requests
+import streamlit as st
 import re
+import csv
+import base64
+import numpy as np
+import pandas as pd
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
-from nltk.tokenize import RegexpTokenizer
-import emoji
-
-nltk.download('punkt')
+import time
+from PIL import Image
+import matplotlib.pyplot as plt
+import seaborn as sns
+from textblob import TextBlob
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, precision_score, recall_score, classification_report
+from streamlit_option_menu import option_menu
+from wordcloud import WordCloud
+from collections import Counter
+from sklearn.feature_extraction.text import TfidfVectorizer
 nltk.download('stopwords')
+nltk.download('punkt')
 
 
-st.set_option('deprecation.showPyplotGlobalUse', False)
+# Halaman "Home"
+st.set_page_config(
+    page_title="SENTIMENT ANALISIS TWITTER",
+    # Replace with your desired icon URL or emoji
+    page_icon="logoig.png",
+    layout="wide"
+)
 
-topik_list = ["Prabowo", "Sandiuno", "Airlanggahartarto"]
+# hide menu
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+</style>
+"""
 
-# Load CSV data based on selected topic
-def load_data(topic):
-    file_path = os.path.join("dataset", f"{topic}.csv")
-    data = pd.read_csv(file_path)
-    return data
 
-# Load positive, negative words, and stopwords
+def preprocess_text(text):
+    # remove URL
+    url_pattern = re.compile(r'https?://\S+|www\.\S+')
+    text = url_pattern.sub(r'', text)
+
+    # remove hashtags
+    text = re.sub(r'#', '', text)
+
+    # remove mention handle user (@)
+    text = re.sub(r'@[\w]*', ' ', text)
+
+    # remove punctuation
+    punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~'''
+    for x in text.lower():
+        if x in punctuations:
+            text = text.replace(x, " ")
+
+    # remove extra whitespace
+    text = text.strip()
+
+    # lowercase
+    text = text.lower()
+    return text
+
+
 def load_positive_words():
     with open("positive.txt", "r") as file:
         positive_words = [line.strip() for line in file]
     return positive_words
 
+
 def load_negative_words():
     with open("negative.txt", "r") as file:
         negative_words = [line.strip() for line in file]
     return negative_words
+
 
 def load_stopwords():
     with open("stopwords-id.txt", "r") as file:
@@ -56,7 +88,8 @@ def load_stopwords():
     return stopwords
 
 
-def analyze_sentiment(text, stopwords=None):  # Provide a default value for 'stopwords'
+# Provide a default value for 'stopwords'
+def analyze_sentiment(text, stopwords=None):
     cleaned_text = clean_text(text, stopwords)
     sentiment_score = TextBlob(cleaned_text).sentiment.polarity
     if sentiment_score > 0:
@@ -81,10 +114,10 @@ def clean_text(text, stopwords=None):
                                u"\U0001FA00-\U0001FA6F"  # Chess Symbols
                                u"\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
                                u"\U00002702-\U000027B0"  # Dingbats
-                               u"\U000024C2-\U0001F251" 
+                               u"\U000024C2-\U0001F251"
                                "]+", flags=re.UNICODE)
     text = emoji_pattern.sub(r'', text)
-    
+
     text = re.sub(f"[{string.punctuation}]", " ", text)
     text = re.sub(r'\s+', ' ', text)
     text = text.lower()
@@ -101,228 +134,480 @@ def feature_extraction(data):
     return features
 
 # Feature Selection using SelectKBest
-def feature_selection(X, y):
-    selector = SelectKBest(chi2, k=100)
-    X_new = selector.fit_transform(X, y)
-    return X_new
 
 
+def load_stopwords():
+    path_stopwords = [
+        "https://raw.githubusercontent.com/ramaprakoso/analisis-sentimen/master/kamus/stopword.txt",
+        "https://raw.githubusercontent.com/yasirutomo/python-sentianalysis-id/master/data/feature_list/stopwordsID.txt",
+        "https://raw.githubusercontent.com/onlyphantom/elangdev/master/elang/word2vec/utils/stopwords-list/fpmipa-stopwords.txt",
+        "https://raw.githubusercontent.com/onlyphantom/elangdev/master/elang/word2vec/utils/stopwords-list/sastrawi-stopwords.txt",
+        "https://raw.githubusercontent.com/onlyphantom/elangdev/master/elang/word2vec/utils/stopwords-list/aliakbars-bilp.txt",
+        "https://raw.githubusercontent.com/onlyphantom/elangdev/master/elang/word2vec/utils/stopwords-list/pebbie-pebahasa.txt",
+        "https://raw.githubusercontent.com/onlyphantom/elangdev/master/elang/word2vec/utils/stopwords-list/stopwords-id.txt"
+    ]
 
-def main():
-    
-    menu = ["Home", "Dataset", "Processing", "Visualisasi", "Model & Prediksi","About"]
-    choice = st.sidebar.selectbox("Menu", menu)
-    # Load the Instagram logo image
-    instagram_logo = Image.open("logoig.png")
+    stopwords_l = stopwords.words('indonesian')
+    for path in path_stopwords:
+        response = requests.get(path)
+        stopwords_l += response.text.split('\n')
 
-    st.sidebar.image(instagram_logo, use_column_width=True)
-    st.sidebar.caption(':copyright: Sorongdev' )
+    custom_stopwords = '''
+    yg yang dgn ane smpai bgt gua gwa si tu ama utk udh btw
+    ntar lol ttg emg aj aja tll sy sih kalo nya trsa mnrt nih
+    ma dr ajaa tp akan bs bikin kta pas pdahl bnyak guys abis tnx
+    bang banget nang mas amat bangettt tjoy hemm haha sllu hrs lanjut
+    bgtu sbnrnya trjadi bgtu pdhl sm plg skrg
+    '''
 
-    if choice == "Home":
-        st.markdown("<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram</h1>", unsafe_allow_html=True)
-       
-        st.image("https://www.travelmediagroup.com/wp-content/uploads/2022/04/bigstock-Market-Sentiment-Fear-And-Gre-451706057-2880x1800.jpg",use_column_width=True)
-
-    elif choice == "Dataset":
-        st.write("Pilih Topik")
-        selected_topic = st.selectbox("", topik_list)
-        st.write(f"Menampilkan data untuk topik: {selected_topic}")
-        # Load data for the selected topic
-        data = load_data(selected_topic)
-        # Display the data table
-        st.dataframe(data)
-        # Display the number of data
-        num_data = len(data)
-        st.write(f"Jumlah data: {num_data}")
-
-    elif choice == "Processing":
-        st.title("Pilih Topik")
-        selected_topic = st.selectbox("", topik_list)
-        st.write(f"Menampilkan data untuk topik: {selected_topic}")
-        data = load_data(selected_topic)
-
-        # Load stopwords, positive words, and negative words
-        stopwords = load_stopwords()
-        positive_words = load_positive_words()
-        negative_words = load_negative_words()
-
-        # Drop specified columns
-        columns_to_drop = ["profilePictureUrl", "profileUrl", "likeCount", "replyCount", "commentDate", "timestamp", "commentId", "ownerId", "query"]
-        data = data.drop(columns=columns_to_drop)
-
-        data['cleaned_text'] = data['comment'].apply(clean_text, args=(stopwords,))
-        data['sentiment_label'] = data['cleaned_text'].apply(analyze_sentiment, stopwords=stopwords)
-
-        # Feature Extraction
-        X = feature_extraction(data)
-        y = data['sentiment_label']
-
-        # Feature Selection
-        X_selected = feature_selection(X, y)
-
-        # Display processed data
-        st.write("Data setelah preprocessing, feature extraction, dan feature selection:")
-        st.write(data)
-        # st.write("Data features setelah selection:")
-        # st.write(X_selected)
-
-        # Create a BytesIO object to store the CSV data
-        csv_data = data.to_csv(index=False).encode()
-
-        # Add a download button for preprocessed data
-        st.download_button(
-            label="Download Preprocessed Data",
-            data=csv_data,
-            file_name="preprocessed_data.csv",
-            mime="text/csv"
-        )
+    return set(stopwords_l + custom_stopwords.split())
 
 
+with st.sidebar:
+    st.image(Image.open('logoig.png'))
+    st.caption('© SoorngDev 2023')
 
-    elif choice == "Visualisasi":
-        # st.sidebar.title("Pilih Topik")
-        # selected_topic = st.sidebar.selectbox("", topik_list)
-        # st.sidebar.write(f"Menampilkan data untuk topik: {selected_topic}")
-        data = st.file_uploader("Upload Preprocessed Data", type=["csv"])
+# Konfigurasi Pilihan Menu
+selected = option_menu(
+    menu_title=None,
+    options=["Home", "Dataset", "Processing", "Modeling", "Prediksi"],
+    icons=["house", "book", "graph-up", "graph-up", "graph-down"],
+    menu_icon="cast",
+    default_index=0,
+    orientation="horizontal",
+)
 
-        if data is not None:
-            data = pd.read_csv(data)
+# Menu Sentimen Berita
+if selected == "Home":
+   # Define custom CSS style to center the text
+    st.markdown(
+        f"""
+        <style>
+            .centered-text {{
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 30px;
+                margin-bottom:30px;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram</h1>", unsafe_allow_html=True)
 
-            # Handle NaN or null values in cleaned_text
-            data['cleaned_text'].fillna('', inplace=True)
-            # Display wordcloud
-            st.write("Wordcloud:")
-            wordcloud = WordCloud(stopwords=STOPWORDS, background_color="white").generate(" ".join(data['cleaned_text'].astype(str)))
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis("off")
-            st.pyplot()
+    st.image("https://www.travelmediagroup.com/wp-content/uploads/2022/04/bigstock-Market-Sentiment-Fear-And-Gre-451706057-2880x1800.jpg", use_column_width=True)
 
-            # Generate sentiment-specific word clouds
-            for sentiment_label in ["Positive", "Negative", "Neutral"]:
-                st.write(f"{sentiment_label} Wordcloud:")
-                filtered_text = " ".join(data[data['sentiment_label'] == sentiment_label]['cleaned_text'].astype(str))
-                wordcloud = WordCloud(stopwords=STOPWORDS, background_color="white").generate(filtered_text)
-                plt.imshow(wordcloud, interpolation='bilinear')
-                plt.axis("off")
-                st.pyplot()
+# Menu Sentimen Pasar
+if selected == "Dataset":
+    st.title("DataSet")
 
-        # Word frequency analysis
-                words = re.findall(r'\b\w+\b', filtered_text)  # Tokenize words
-                word_counter = Counter(words)
-                common_words = word_counter.most_common(10)
+    def load_data(file_path):
+        try:
+            data = pd.read_csv(file_path)
+            return data
+        except Exception as e:
+            st.error(f"Terjadi kesalahan saat memuat data: {e}")
+            return None
 
-                # Create a bar chart for the most common words
-                word_labels, word_counts = zip(*common_words)
-                plt.figure(figsize=(10, 6))
-                plt.bar(word_labels, word_counts)
-                plt.xlabel("Words")
-                plt.ylabel("Frequency")
-                plt.title(f"Most Common Words for {sentiment_label} Sentiment")
-                plt.xticks(rotation=45)
-                st.pyplot()
+    # Dropdown untuk memilih topik
+    topik_list = ["Prabowo", "Sandiaga Uno", "Airlangga Hartarto"]
+    topic = st.selectbox("Pilih topik:", topik_list, index=0)
 
-            # Display pie chart
-            st.write("Pie chart:")
-            sentiment_counts = data['sentiment_label'].value_counts()
-            plt.pie(sentiment_counts, labels=sentiment_counts.index, autopct='%1.1f%%', startangle=140)
-            plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-            st.pyplot()
+    # Tampilkan tombol untuk memuat data
+    load_button = st.button("Muat Data")
 
-            # Display bar chart
-            st.write("Bar chart:")
-            st.bar_chart(data['sentiment_label'].value_counts())
+    # Pengecekan apakah tombol ditekan
+    if load_button:
+        if topic == "Prabowo":
+            file_path = "dataset/prabowo.csv"
+        elif topic == "Sandiaga Uno":
+            file_path = "dataset/sandiuno.csv"
+        elif topic == "Airlangga Hartarto":
+            file_path = "dataset/airlanggahartarto.csv"
+        else:
+            st.warning(
+                "Anda belum memilih topik. Pilih topik untuk menampilkan data.")
+            file_path = None
 
-    elif choice == "Model & Prediksi":
-        st.title("Model & Prediksi")
+        # Jika file_path telah ditentukan, muat dan tampilkan data
+        if file_path is not None:
+            st.write(f"Menampilkan data dari {file_path}")
+            data = load_data(file_path)
+            if data is not None:
+                st.dataframe(data)
 
-        data = st.file_uploader("Unggah Data yang Telah Diproses", type=["csv"])
+                # Create the download link for CSV
+                csv_data = data.to_csv(
+                    index=False, quoting=csv.QUOTE_NONNUMERIC)
+                b64 = base64.b64encode(csv_data.encode()).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="{topic}_data.csv">Download Data CSV</a>'
+                st.markdown(href, unsafe_allow_html=True)
 
-        if data is not None:
-            data = pd.read_csv(data)
 
-            # Mengatasi nilai NaN atau null pada kolom cleaned_text
-            data['cleaned_text'].fillna('', inplace=True)
+if selected == "Processing":
+    st.title("Labeling & Processing")
 
-            # Muat stopwords
-            stopwords = load_stopwords()
+    stop_words = load_stopwords()
 
-            # Fitur kata negatif
-            negative_words = load_negative_words()
-            positive_words = load_positive_words()
+    # Membuat objek PorterStemmer
+    ps = PorterStemmer()
 
-            # Feature Extraction
-            vectorizer = TfidfVectorizer(max_features=1000)
-            features = vectorizer.fit_transform(data['cleaned_text'])
+    def analyze_sentiment(comment):
+        analysis = TextBlob(comment)
+        if analysis.sentiment.polarity > 0:
+            return 'Positive'
+        elif analysis.sentiment.polarity == 0:
+            return 'Neutral'
+        else:
+            return 'Negative'
 
-            # Prepare data for modeling
-            X = features
-            y = data['sentiment_label']
+    def clean_comment(comment):
+        # Menghapus karakter yang tidak diinginkan
+        comment = re.sub(
+            '(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)|([RT])', ' ', comment.lower())
+        return comment
 
-            # Split data into training and testing sets
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    def case_folding(comment):
+        # Mengubah teks menjadi lowercase
+        return comment.lower()
+
+    def tokenizing(comment):
+        # Melakukan tokenisasi pada teks
+        return word_tokenize(comment)
+
+    def normalization(tokens):
+        # Melakukan normalisasi kata-kata
+        normalized_tokens = []
+        for token in tokens:
+            normalized_token = ps.stem(token)
+            normalized_tokens.append(normalized_token)
+        return normalized_tokens
+
+    def removal_stopwords(tokens):
+        # Menghapus stopwords dari teks
+        tokens_without_stopwords = [
+            token for token in tokens if token not in stop_words]
+        return tokens_without_stopwords
+
+    def stemming(tokens):
+        # Melakukan stemming pada kata-kata
+        stemmed_tokens = []
+        for token in tokens:
+            stemmed_token = ps.stem(token)
+            stemmed_tokens.append(stemmed_token)
+        return stemmed_tokens
+
+    uploaded_file = st.file_uploader(
+        "Pilih file CSV untuk preprocessing", type=["csv"])
+
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.write("Info File:")
+        st.write("- Nama File: ", uploaded_file.name)
+        st.write("Data Awal:")
+        st.write(df.head(1000))
+
+        def preprocessing():
+            st.write("Start Pre-processing")
+            st.write("| cleaning...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['clean_comment'] = df['comment'].apply(clean_comment)
+
+            st.write("| case folding...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['clean_comment'] = df['clean_comment'].apply(case_folding)
+
+            st.write("| tokenizing...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['tokens'] = df['clean_comment'].apply(tokenizing)
+
+            st.write("| normalization...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['normalized_tokens'] = df['tokens'].apply(normalization)
+
+            st.write("| removal stopwords...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['tokens_without_stopwords'] = df['normalized_tokens'].apply(
+                removal_stopwords)
+
+            st.write("| stemming...")
+            time.sleep(1)  # Simulasi waktu pemrosesan
+            df['stemmed_tokens'] = df['normalized_tokens'].apply(stemming)
+
+            st.write("Finish Pre-processing")
+
+        if st.button("Mulai Pre-processing"):
+
+            preprocessing()
+            # Drop specified columns
+            columns_to_drop = ["profilePictureUrl", "profileUrl", "likeCount",
+                               "replyCount", "commentDate", "timestamp", "commentId", "ownerId", "query"]
+            df = df.drop(columns=columns_to_drop)
+            df['label'] = df['clean_comment'].apply(analyze_sentiment)
+
+            # Mengurutkan label ke paling akhir
+            cols = df.columns.tolist()
+            cols.remove('label')
+            cols.append('label')
+            df = df[cols]
+
+            st.write("Hasil Preprocessing:")
+            st.write(df.head(1000))
+
+            temp_file = df.to_csv(index=False)
+            b64 = base64.b64encode(temp_file.encode()).decode()
+            href = f'<a href="data:file/csv;base64,{b64}" download="hasil_preprocessing.csv">Download Hasil Preprocessing</a>'
+            st.markdown(href, unsafe_allow_html=True)
+    else:
+        st.warning("Silakan pilih file CSV untuk melakukan preprocessing.")
+
+
+if selected == "Modeling":
+    st.title("Modeling & Visualisasi")
+    # Kode untuk menampilkan konten halaman "Modeling"
+    uploaded_file = st.file_uploader(
+        "Pilih file CSV untuk preprocessing", type=["csv"])
+
+    # Jika file CSV dipilih
+    if uploaded_file is not None:
+
+        # Membaca file CSV menjadi DataFrame
+        df = pd.read_csv(uploaded_file)
+
+        # Menampilkan informasi tentang file yang diunggah
+        st.write("Info File:")
+        st.write("- Nama File: ", uploaded_file.name)
+
+        # # Menampilkan data awal dari DataFrame
+        st.write("Data Awal:")
+        st.write(df.head(1000))
+
+        # Fungsi untuk melakukan analisis sentimen menggunakan Logistic Regression
+
+        # Menambahkan tombol untuk memulai preprocessing dan training model
+        if st.button("Mulai Preprocessing dan Training Model"):
+
+            # Memisahkan fitur dan label
+            X = df['clean_comment']
+            y = df['label']
+
+            # Melakukan vectorization pada teks
+            vectorizer = CountVectorizer()
+            X_vectorized = vectorizer.fit_transform(X)
+
+            # Membagi data menjadi data latih dan data uji
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_vectorized, y, test_size=0.2, random_state=42)
 
             # Latih KNN classifier
             knn_classifier = KNeighborsClassifier(n_neighbors=5)
             knn_classifier.fit(X_train, y_train)
 
-            # Make predictions
+           # Make predictions
             y_pred = knn_classifier.predict(X_test)
 
-            # Display accuracy
+            # Menghitung akurasi, F1 score, dan confusion matrix model
             accuracy = accuracy_score(y_test, y_pred)
-            st.write(f"Akurasi: {accuracy:.2f}")
+            f1 = f1_score(y_test, y_pred, average='weighted')
+            cm = confusion_matrix(y_test, y_pred)
+            accuracy = accuracy_score(y_test, y_pred)
+            precision = precision_score(y_test, y_pred, average='weighted')
+            recall = recall_score(y_test, y_pred, average='weighted')
 
-            # Calculate confusion matrix
-            conf_matrix = confusion_matrix(y_test, y_pred)
-
-            # Display confusion matrix as a heatmap
-            plt.figure(figsize=(8, 6))
-            sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues",
-                        xticklabels=knn_classifier.classes_,
-                        yticklabels=knn_classifier.classes_)
-            plt.xlabel('Predicted Labels')
-            plt.ylabel('True Labels')
-            plt.title('Confusion Matrix')
-            plt.show()
-
-            # Display classification report
+            # Membuat classification report
             classification_rep = classification_report(y_test, y_pred)
+
+            # Menampilkan akurasi, F1 score, dan confusion matrix
+            st.write("Accuracy: {:.2f}%".format(accuracy * 100))
+            st.write("Precision: {:.2f}%".format(precision * 100))
+            st.write("Recall: {:.2f}%".format(recall * 100))
+            st.write("F1-score: {:.2f}%".format(f1 * 100))
+
+            # Menampilkan classification report
             st.text("Classification Report:")
             st.text(classification_rep)
 
-            # Form untuk prediksi
-            st.write("Form Prediksi:")
-            input_text = st.text_input("Masukkan komentar:")
-            if st.button("Prediksi"):
-                cleaned_input = clean_text(input_text, stopwords)
-                input_features = vectorizer.transform([cleaned_input])
+            fig, ax = plt.subplots(figsize=(10, 3))
+            # Visualisasi confusion matrix
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+            ax.set_title('Confusion Matrix')
+            plt.tight_layout()
 
-                # Periksa apakah kata negatif ada dalam komentar
-                negative_word_found = any(word in cleaned_input.split() for word in negative_words)
-                positive_word_found = any(word in cleaned_input.split() for word in positive_words)
-                
+            # Menampilkan visualisasi data
+            st.pyplot(fig)
 
-                if negative_word_found:
-                    prediction = "Negative"
-                elif positive_word_found:
-                    prediction = "Positive"
-                else:
-                    prediction = knn_classifier.predict(input_features)[0]
+            # Menggabungkan semua teks menjadi satu string
+            all_text = ' '.join(df['clean_comment'].values)
 
-                st.write(f"Sentimen yang Diprediksi: {prediction}")
+            # Membuat objek WordCloud
+            wordcloud = WordCloud(width=500, height=100, max_words=150,
+                                  background_color='white').generate(all_text)
 
+            # Visualisasi WordCloud
+            fig, ax = plt.subplots(figsize=(10, 3))
+            ax.imshow(wordcloud, interpolation='bilinear')
+            ax.set_title('WordCloud - Kata yang Sering Muncul')
+            ax.axis('off')
 
-    elif choice == "About":
-        st.title("Tentang Aplikasi Sentiment Analisis Instagram")
-        st.write("Aplikasi ini digunakan untuk melakukan analisis sentimen pada komentar di platform Instagram.")
-        st.write("Dengan aplikasi ini, Anda dapat melakukan berbagai tugas seperti:")
-        st.write("- Melihat data komentar berdasarkan topik yang telah dipilih.")
-        st.write("- Melakukan preprocessing pada data komentar, termasuk membersihkan teks dan mengidentifikasi sentimen.")
-        st.write("- Melihat visualisasi berupa wordcloud, diagram batang, dan pie chart dari data komentar.")
-        st.write("- Melakukan prediksi sentimen menggunakan model K-Nearest Neighbors (KNN).")
-        st.write("Aplikasi ini dibangun dengan menggunakan Streamlit dan beberapa pustaka analisis teks populer.")
-        st.write("Selamat menggunakan aplikasi ini untuk menjalankan analisis sentimen pada data Instagram!")
+            # Menampilkan visualisasi data
+            st.pyplot(fig)
 
+            # Menghitung kata yang sering muncul
+            from collections import Counter
 
-if __name__ == "__main__":
-    main()
+            # Mengubah string menjadi list kata-kata
+            words_list = all_text.split()
+
+            # Menghitung jumlah kemunculan setiap kata
+            word_count = Counter(words_list)
+
+            # Mengambil 10 kata yang paling sering muncul
+            common_words = word_count.most_common(10)
+
+            # Mengambil kata dan jumlah kemunculannya
+            words = [word for word, count in common_words]
+            count = [count for word, count in common_words]
+
+            # Menggabungkan semua teks tweet positif dan negatif menjadi satu string
+            all_positive_tweets = ' '.join(
+                df[df['label'] == 'Positive']['clean_comment'])
+            all_negative_tweets = ' '.join(
+                df[df['label'] == 'Negative']['clean_comment'])
+
+            a = len(df[df["label"] == "Positive"])
+            b = len(df[df["label"] == "Negative"])
+            c = len(df[df["label"] == "Neutral"])
+            # d = len(df[df["label"] == "Mixed"])
+
+            # Membuat diagram batang
+            fig, ax = plt.subplots(figsize=(10, 3))
+            ax.bar(["Positive", "Negative", "Neutral"], [a, b, c])
+            ax.set_title('Jumlah Data untuk Setiap Sentimen')
+            ax.set_xlabel('Sentimen')
+            ax.set_ylabel('Jumlah Data')
+            # Menampilkan visualisasi data
+            st.pyplot(fig)
+
+            # Membuat diagram batang
+            fig, ax = plt.subplots(figsize=(10, 3))
+            ax.bar(words, count)
+            ax.set_title('Kata yang Sering Muncul')
+            ax.set_xlabel('Kata')
+            ax.set_ylabel('Jumlah Kemunculan')
+            # Menampilkan visualisasi data
+            st.pyplot(fig)
+
+        # Piechart
+            a = len(df[df["label"] == "Positive"])
+            b = len(df[df["label"] == "Negative"])
+            c = len(df[df["label"] == "Neutral"])
+            labels = ['Positive', 'Negative', 'Neutral']
+            sizes = [a, b, c]
+            colors = ['#66b3ff', '#ff9999', '#99ff99']
+            fig1, ax1 = plt.subplots(figsize=(10, 3))
+            ax1.pie(sizes, colors=colors, labels=labels,
+                    autopct='%1.1f%%', startangle=90)
+            # Draw circle
+            centre_circle = plt.Circle((0, 0), 0.70, fc='white')
+            fig = plt.gcf()
+            fig.gca().add_artist(centre_circle)
+            # Equal aspect ratio ensures that pie is drawn as a circle
+            ax1.axis('equal')
+            plt.title("Persentase Sentimen")
+            plt.tight_layout()
+            # Menampilkan visualisasi data
+            st.pyplot(fig1)
+
+            # Membuat WordCloud untuk tweet positif
+
+            wordcloud_positive = WordCloud(
+                width=500, height=100, background_color='white').generate(all_positive_tweets)
+            plt.figure(figsize=(10, 3))
+            plt.imshow(wordcloud_positive, interpolation='bilinear')
+            plt.axis('off')
+            plt.title('WordCloud untuk Tweet Positif')
+            # Menampilkan visualisasi data
+            st.pyplot(plt)
+
+            # Mengecek apakah ada sentimen negatif
+            if 'Negative' in df['label'].values:
+
+                wordcloud_negative = WordCloud(
+                    width=500, height=100, background_color='white').generate(all_negative_tweets)
+                plt.figure(figsize=(10, 3))
+                plt.imshow(wordcloud_negative, interpolation='bilinear')
+                plt.axis('off')
+                plt.title('WordCloud untuk Tweet Negatif')
+                # Menampilkan visualisasi data
+                st.pyplot(plt)
+
+if selected == "Prediksi":
+    st.title("Prediksi Sentimen")
+    # Kode untuk menampilkan konten halaman "Modeling"
+    uploaded_file = st.file_uploader(
+        "Upload File Hasil Processing", type=["csv"])
+
+    # Jika file CSV dipilih
+    if uploaded_file is not None:
+
+        # Membaca file CSV menjadi DataFrame
+        df = pd.read_csv(uploaded_file)
+
+        # Menampilkan informasi tentang file yang diunggah
+        st.write("Info File:")
+        st.write("- Nama File: ", uploaded_file.name)
+
+        # # Menampilkan data awal dari DataFrame
+        st.write("Data Awal:")
+        st.write(df.head(1000))
+       # Mengatasi nilai NaN atau null pada kolom cleaned_text
+        df['clean_comment'].fillna('', inplace=True)
+
+        # Muat stopwords
+        stopwords = load_stopwords()
+
+        # Fitur kata negatif
+        negative_words = load_negative_words()
+        positive_words = load_positive_words()
+
+        # Feature Extraction
+        vectorizer = TfidfVectorizer(max_features=1000)
+        features = vectorizer.fit_transform(df['clean_comment'])
+
+        # Prepare data for modeling
+        X = features
+        y = df['label']
+
+        # Split data into training and testing sets
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=42)
+
+        # Latih KNN classifier
+        knn_classifier = KNeighborsClassifier(n_neighbors=5)
+        knn_classifier.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = knn_classifier.predict(X_test)
+        # Form untuk prediksi
+        st.write("Form Prediksi:")
+        input_text = st.text_input("Masukkan komentar:")
+        if st.button("Prediksi"):
+            cleaned_input = clean_text(input_text, stopwords)
+            input_features = vectorizer.transform([cleaned_input])
+
+            # Periksa apakah kata negatif ada dalam komentar
+            negative_word_found = any(
+                word in cleaned_input.split() for word in negative_words)
+            positive_word_found = any(
+                word in cleaned_input.split() for word in positive_words)
+
+            if negative_word_found:
+                prediction = "Negative"
+            elif positive_word_found:
+                prediction = "Positive"
+            else:
+                prediction = knn_classifier.predict(input_features)[0]
+
+            st.write(f"Sentimen yang Diprediksi: {prediction}")
