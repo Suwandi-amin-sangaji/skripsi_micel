@@ -29,7 +29,7 @@ nltk.download('punkt')
 
 # Halaman "Home"
 st.set_page_config(
-    page_title="SENTIMENT ANALISIS TWITTER",
+    page_title="SENTIMENT ANALISIS INSTAGRAM",
     # Replace with your desired icon URL or emoji
     page_icon="logoig.png",
     layout="wide"
