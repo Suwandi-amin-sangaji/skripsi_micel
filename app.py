@@ -195,9 +195,24 @@ if selected == "Home":
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram</h1>", unsafe_allow_html=True)
+        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram 3 Mentri RI</h1>", unsafe_allow_html=True)
 
-    st.image("https://www.travelmediagroup.com/wp-content/uploads/2022/04/bigstock-Market-Sentiment-Fear-And-Gre-451706057-2880x1800.jpg", use_column_width=True)
+    # Gambar yang ingin Anda tampilkan
+    prabowo = "image/3.jpeg"
+    sandiaga = "image/2.jpeg"
+    airlangga = "image/1.jpeg"
+
+    # Tampilkan gambar dalam tiga kolom
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.image(prabowo, use_column_width=True)
+
+    with col2:
+        st.image(sandiaga, use_column_width=True)
+
+    with col3:
+        st.image(airlangga, use_column_width=True)
 
 # Menu Sentimen Pasar
 if selected == "Dataset":
@@ -407,6 +422,10 @@ if selected == "Modeling":
 
            # Make predictions
             y_pred = knn_classifier.predict(X_test)
+
+            # Menampilkan hasil pembagian data
+            st.write("Jumlah Data Latih:", X_train.shape[0])
+            st.write("Jumlah Data Uji:", X_test.shape[0])
 
             # Menghitung akurasi, F1 score, dan confusion matrix model
             accuracy = accuracy_score(y_test, y_pred)
