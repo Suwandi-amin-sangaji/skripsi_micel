@@ -195,7 +195,7 @@ if selected == "Home":
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram 3 Menteri RI</h1>", unsafe_allow_html=True)
+        "<h1 style='text-align: center; color: red;'>Aplikasi Analisis Sentimen Instagram 3 Menteri RI</h1>", unsafe_allow_html=True)
 
     # Gambar yang ingin Anda tampilkan
     prabowo = "image/3.jpeg"
