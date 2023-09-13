@@ -391,8 +391,6 @@ if selected == "Processing":
             b64 = base64.b64encode(temp_file.encode()).decode()
             href = f'<a href="data:file/csv;base64,{b64}" download="hasil_preprocessing.csv">Download Hasil Preprocessing</a>'
             st.markdown(href, unsafe_allow_html=True)
-    else:
-        st.warning("Silakan pilih file CSV untuk melakukan preprocessing.")
 
 
 if selected == "Modeling":
@@ -512,10 +510,12 @@ if selected == "Modeling":
             count = [count for word, count in common_words]
 
             # Menggabungkan semua teks tweet positif dan negatif menjadi satu string
-            all_positive_tweets = ' '.join(
+            all_positive_comment = ' '.join(
                 df[df['label'] == 'Positive']['clean_comment'])
-            all_negative_tweets = ' '.join(
+            all_negative_comment = ' '.join(
                 df[df['label'] == 'Negative']['clean_comment'])
+            all_neutral_comment = ' '.join(
+                df[df['label'] == 'Neutral']['clean_comment'])
 
             a = len(df[df["label"] == "Positive"])
             b = len(df[df["label"] == "Negative"])
@@ -564,11 +564,11 @@ if selected == "Modeling":
             # Membuat WordCloud untuk tweet positif
 
             wordcloud_positive = WordCloud(
-                width=500, height=100, background_color='white').generate(all_positive_tweets)
+                width=500, height=100, background_color='white').generate(all_positive_comment)
             plt.figure(figsize=(10, 3))
             plt.imshow(wordcloud_positive, interpolation='bilinear')
             plt.axis('off')
-            plt.title('WordCloud untuk Tweet Positif')
+            plt.title('WordCloud untuk Comment Positif')
             # Menampilkan visualisasi data
             st.pyplot(plt)
 
@@ -576,13 +576,25 @@ if selected == "Modeling":
             if 'Negative' in df['label'].values:
 
                 wordcloud_negative = WordCloud(
-                    width=500, height=100, background_color='white').generate(all_negative_tweets)
+                    width=500, height=100, background_color='white').generate(all_negative_comment)
                 plt.figure(figsize=(10, 3))
                 plt.imshow(wordcloud_negative, interpolation='bilinear')
                 plt.axis('off')
-                plt.title('WordCloud untuk Tweet Negatif')
+                plt.title('WordCloud untuk Comment Negatif')
                 # Menampilkan visualisasi data
                 st.pyplot(plt)
+            # Mengecek apakah ada sentimen netral
+            if 'Neutral' in df['label'].values:
+
+                wordcloud_neutral = WordCloud(
+                    width=500, height=100, background_color='white').generate(all_neutral_comment)
+                plt.figure(figsize=(10, 3))
+                plt.imshow(wordcloud_neutral, interpolation='bilinear')
+                plt.axis('off')
+                plt.title('WordCloud untuk Comment Netral')
+                # Menampilkan visualisasi data
+                st.pyplot(plt)
+
 
 if selected == "Prediksi":
     st.title("Prediksi Sentimen")
