@@ -195,24 +195,40 @@ if selected == "Home":
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram 3 Mentri RI</h1>", unsafe_allow_html=True)
+        "<h1 style='text-align: center; color: white;'>Aplikasi Analisis Sentimen Instagram 3 Menteri RI</h1>", unsafe_allow_html=True)
 
     # Gambar yang ingin Anda tampilkan
     prabowo = "image/3.jpeg"
-    sandiaga = "image/2.jpeg"
-    airlangga = "image/1.jpeg"
+    sandiaga = "image/sandi.png"
+    airlangga = "image/air.jpeg"
+
+    # Tentukan tinggi yang sama untuk semua gambar (misalnya 300 piksel)
+    image_height = 200
 
     # Tampilkan gambar dalam tiga kolom
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.image(prabowo, use_column_width=True)
+        st.markdown(
+            '<div style="text-align:center;">Letnan Jenderal TNI (Purn.) H. Prabowo Subianto Djojohadikusumo</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="text-align:center;">Menteri Pertahanan</div>', unsafe_allow_html=True)
 
     with col2:
         st.image(sandiaga, use_column_width=True)
+        st.markdown(
+            '<div style="text-align:center;">Dr. H. Sandiaga Salahuddin Uno, B.B.A., M.B.A.</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="text-align:center;">Menteri Pariwisata dan Ekonomi Kreatif </div>', unsafe_allow_html=True)
 
     with col3:
         st.image(airlangga, use_column_width=True)
+        st.markdown(
+            '<div style="text-align:center;">Dr. (H.C.) Ir. Airlangga Hartarto, M.B.A., M.M.T., IPU.</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="text-align:center;">Menteri Koordinator Bidang Perekonomian</div>', unsafe_allow_html=True)
+
 
 # Menu Sentimen Pasar
 if selected == "Dataset":
@@ -434,9 +450,14 @@ if selected == "Modeling":
             accuracy = accuracy_score(y_test, y_pred)
             precision = precision_score(y_test, y_pred, average='weighted')
             recall = recall_score(y_test, y_pred, average='weighted')
+            if len(cm) == 2:
+                class_names = ['Neutral', 'Positive']
+            else:
+                class_names = ['Negative', 'Positive', 'Neutral']
 
             # Membuat classification report
-            classification_rep = classification_report(y_test, y_pred)
+            classification_rep = classification_report(
+                y_test, y_pred)
 
             # Menampilkan akurasi, F1 score, dan confusion matrix
             st.write("Accuracy: {:.2f}%".format(accuracy * 100))
@@ -450,7 +471,8 @@ if selected == "Modeling":
 
             fig, ax = plt.subplots(figsize=(10, 3))
             # Visualisasi confusion matrix
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                        xticklabels=class_names, yticklabels=class_names)
             ax.set_title('Confusion Matrix')
             plt.tight_layout()
 
