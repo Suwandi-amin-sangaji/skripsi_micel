@@ -21,11 +21,6 @@ emoji==2.8.0
 entrypoints==0.4
 et-xmlfile==1.1.0
 filelock==3.12.2
-Flask==2.0.3
-Flask-JSGlue==0.3.1
-Flask-Moment==1.0.5
-Flask-SQLAlchemy==3.0.3
-Flask-WTF==1.1.1
 flatbuffers==23.5.26
 fonttools==4.39.4
 gast==0.4.0
